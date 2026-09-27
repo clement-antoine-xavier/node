@@ -16,6 +16,12 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v7.0.1
 
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint with clippy
+        run: cargo clippy --all-targets -- -D warnings
+
       - name: Build the project
         run: cargo build --verbose
 

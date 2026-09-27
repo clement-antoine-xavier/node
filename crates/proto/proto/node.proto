@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package node.v1;
+
+// NodeService is the node-to-node (peer) interface.
+//
+// These are deliberately transport/status RPCs only. Consensus, storage and
+// replication messages will be added as the database is implemented.
+service NodeService {
+  // Exchange identity and protocol metadata when a peer connection is opened.
+  rpc Handshake(HandshakeRequest) returns (HandshakeResponse);
+  // Liveness probe.
+  rpc Ping(PingRequest) returns (PongResponse);
+  // Snapshot of the local node's view of the network.
+  rpc Status(StatusRequest) returns (StatusResponse);
+}
+
+message HandshakeRequest {
+  string peer_id = 1;
+  string protocol_version = 2;
+  // Address this node advertises to peers for inbound connections.
+  string advertise_address = 3;
+}
+
+message HandshakeResponse {
+  string peer_id = 1;
+  string protocol_version = 2;
+  string node_version = 3;
+  uint64 uptime_ms = 4;
+  uint32 peer_count = 5;
+}
+
+message PingRequest {
+  uint64 nonce = 1;
+}
+
+message PongResponse {
+  uint64 nonce = 1;
+  uint64 server_time_ms = 2;
+}
+
+message StatusRequest {}
+
+message PeerInfo {
+  string peer_id = 1;
+  string address = 2;
+  string protocol_version = 3;
+}
+
+message StatusResponse {
+  string peer_id = 1;
+  string node_version = 2;
+  uint64 uptime_ms = 3;
+  uint32 peer_count = 4;
+  // Placeholder for the future chain height; always 0 for now.
+  uint64 height = 5;
+  repeated PeerInfo peers = 6;
+}

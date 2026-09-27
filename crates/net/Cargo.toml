@@ -1,0 +1,34 @@
+[package]
+name = "net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+proto.workspace = true
+
+tokio = { workspace = true, features = ["rt", "net", "time", "macros", "signal", "sync"] }
+tokio-util.workspace = true
+futures.workspace = true
+
+tonic.workspace = true
+tonic-prost.workspace = true
+prost.workspace = true
+
+hyper.workspace = true
+hyper-util.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+bytes.workspace = true
+
+tower.workspace = true
+tower-http.workspace = true
+
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

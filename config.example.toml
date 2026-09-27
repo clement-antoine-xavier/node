@@ -1,0 +1,27 @@
+# Example node configuration. Every field is optional; the values below are the
+# defaults. Override with flags/env (see `node --help`).
+
+node_id = "node-1"
+
+[log]
+level = "info"   # tracing filter, e.g. "info,net=debug"
+format = "pretty" # "pretty" or "json"
+
+[p2p]
+listen = "127.0.0.1:9001"
+advertise_address = "127.0.0.1:9001"
+peers = []          # e.g. ["http://127.0.0.1:9002"]
+request_timeout_ms = 5000
+max_retries = 3
+retry_backoff_ms = 200
+max_concurrent_requests = 32
+rate_limit_per_second = 1000
+max_message_bytes = 4194304
+allowed_methods = ["handshake", "ping", "status"]
+
+[client]
+listen = "127.0.0.1:8080"
+request_timeout_ms = 10000
+max_concurrent_requests = 128
+rate_limit_per_second = 2000
+max_body_bytes = 1048576
