@@ -20,6 +20,8 @@ message HandshakeRequest {
   string protocol_version = 2;
   // Address this node advertises to peers for inbound connections.
   string advertise_address = 3;
+  // Hex-encoded Ed25519 public key this node signs its messages with.
+  string public_key = 4;
 }
 
 message HandshakeResponse {
@@ -28,6 +30,8 @@ message HandshakeResponse {
   string node_version = 3;
   uint64 uptime_ms = 4;
   uint32 peer_count = 5;
+  // Hex-encoded Ed25519 public key the responding node signs its messages with.
+  string public_key = 6;
 }
 
 message PingRequest {

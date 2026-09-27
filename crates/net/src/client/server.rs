@@ -16,7 +16,7 @@ use tower::timeout::TimeoutLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 
-use crate::client::layers::MethodFilterLayer;
+use crate::client::layers::{MethodFilterLayer, SignatureLayer};
 use crate::client::router::{NodeInfo, Router};
 use crate::config::ClientConfig;
 use crate::error::NetError;
@@ -30,9 +30,9 @@ pub async fn serve(
     let listener = TcpListener::bind(config.listen).await?;
     tracing::info!(addr = %config.listen, "client HTTP server listening");
 
-    // Inner stack: router -> method filter -> concurrency limit -> rate limit
-    // -> body limit. The buffer at the edge makes the whole thing cheap to
-    // clone (and is the only piece that isn't `Clone`).
+    // Inner stack: router -> signature check -> method filter -> concurrency
+    // limit -> rate limit -> body limit. The buffer at the edge makes the whole
+    // thing cheap to clone (and is the only piece that isn't `Clone`).
     let limited = ServiceBuilder::new()
         .layer(RequestBodyLimitLayer::new(config.max_body_bytes))
         .layer(ConcurrencyLimitLayer::new(config.max_concurrent_requests))
@@ -41,6 +41,10 @@ pub async fn serve(
             Duration::from_secs(1),
         ))
         .layer(MethodFilterLayer::new([Method::GET]))
+        .layer(SignatureLayer::new(
+            config.require_signature,
+            config.max_clock_skew(),
+        ))
         .service(Router::new(info));
     let buffered = Buffer::new(limited, config.max_concurrent_requests);
 

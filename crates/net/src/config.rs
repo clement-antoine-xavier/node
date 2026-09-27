@@ -44,6 +44,8 @@ pub struct P2pConfig {
     pub rate_limit_per_second: u64,
     /// Maximum encoded/decoded gRPC message size, in bytes.
     pub max_message_bytes: usize,
+    /// Allowed clock skew for signed message timestamps, in milliseconds.
+    pub max_clock_skew_ms: u64,
     /// Peer RPCs a connection is allowed to issue; anything else is filtered out.
     pub allowed_methods: Vec<String>,
 }
@@ -60,6 +62,7 @@ impl Default for P2pConfig {
             max_concurrent_requests: 32,
             rate_limit_per_second: 1_000,
             max_message_bytes: 4 * 1024 * 1024,
+            max_clock_skew_ms: 300_000,
             allowed_methods: default_allowed_methods(),
         }
     }
@@ -72,6 +75,10 @@ impl P2pConfig {
 
     pub fn retry_backoff(&self) -> Duration {
         Duration::from_millis(self.retry_backoff_ms)
+    }
+
+    pub fn max_clock_skew(&self) -> Duration {
+        Duration::from_millis(self.max_clock_skew_ms)
     }
 }
 
@@ -89,6 +96,10 @@ pub struct ClientConfig {
     pub rate_limit_per_second: u64,
     /// Maximum accepted request body size, in bytes.
     pub max_body_bytes: usize,
+    /// Require a valid signature on every request except `/health`.
+    pub require_signature: bool,
+    /// Allowed clock skew for signed request timestamps, in milliseconds.
+    pub max_clock_skew_ms: u64,
 }
 
 impl Default for ClientConfig {
@@ -99,6 +110,14 @@ impl Default for ClientConfig {
             max_concurrent_requests: 128,
             rate_limit_per_second: 2_000,
             max_body_bytes: 1024 * 1024,
+            require_signature: true,
+            max_clock_skew_ms: 300_000,
         }
+    }
+}
+
+impl ClientConfig {
+    pub fn max_clock_skew(&self) -> Duration {
+        Duration::from_millis(self.max_clock_skew_ms)
     }
 }

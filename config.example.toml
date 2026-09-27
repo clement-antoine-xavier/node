@@ -3,8 +3,12 @@
 
 node_id = "node-1"
 
+[identity]
+# Ed25519 signing key; generated on first run if absent.
+key_file = "node.key"
+
 [log]
-level = "info"   # tracing filter, e.g. "info,net=debug"
+level = "info"    # tracing filter, e.g. "info,net=debug"
 format = "pretty" # "pretty" or "json"
 
 [p2p]
@@ -17,6 +21,7 @@ retry_backoff_ms = 200
 max_concurrent_requests = 32
 rate_limit_per_second = 1000
 max_message_bytes = 4194304
+max_clock_skew_ms = 300000
 allowed_methods = ["handshake", "ping", "status"]
 
 [client]
@@ -25,3 +30,5 @@ request_timeout_ms = 10000
 max_concurrent_requests = 128
 rate_limit_per_second = 2000
 max_body_bytes = 1048576
+require_signature = true
+max_clock_skew_ms = 300000

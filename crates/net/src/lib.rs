@@ -5,6 +5,7 @@
 //! [`hyper`], node-to-client), and how to apply the shared [`tower`] middleware
 //! stack around both directions.
 
+pub mod auth;
 pub mod client;
 pub mod config;
 pub mod error;
@@ -12,4 +13,5 @@ pub mod p2p;
 pub mod protocol;
 pub mod shutdown;
 
+pub use identity;
 pub use protocol::{PROTOCOL_VERSION, v1};

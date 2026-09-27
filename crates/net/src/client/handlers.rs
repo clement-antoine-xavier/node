@@ -62,3 +62,11 @@ pub fn method_not_allowed() -> Response<Body> {
         json!({ "error": "method not allowed" }),
     )
 }
+
+/// Used by the signature layer when a request is unsigned or invalid.
+pub fn unauthorized() -> Response<Body> {
+    json(
+        StatusCode::UNAUTHORIZED,
+        json!({ "error": "missing or invalid signature" }),
+    )
+}

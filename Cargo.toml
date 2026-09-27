@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/proto", "crates/net", "crates/node"]
+members = ["crates/proto", "crates/identity", "crates/net", "crates/node"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,7 +10,13 @@ license = "MIT"
 [workspace.dependencies]
 # Internal crates
 proto = { path = "crates/proto" }
+identity = { path = "crates/identity" }
 net = { path = "crates/net" }
+
+# Cryptography
+ed25519-dalek = "3"
+getrandom = "0.4"
+hex = "0.4"
 
 # Protocol
 tonic = "0.14"

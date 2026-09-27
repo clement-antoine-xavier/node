@@ -1,6 +1,6 @@
 //! Top-level node configuration: a TOML file plus CLI/environment overrides.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use net::config::{ClientConfig, P2pConfig};
@@ -14,6 +14,7 @@ use crate::cli::Cli;
 pub struct Config {
     /// Stable identifier for this node.
     pub node_id: String,
+    pub identity: IdentityConfig,
     pub log: LogConfig,
     pub p2p: P2pConfig,
     pub client: ClientConfig,
@@ -23,6 +24,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             node_id: "node-1".to_owned(),
+            identity: IdentityConfig::default(),
             log: LogConfig::default(),
             p2p: P2pConfig::default(),
             client: ClientConfig::default(),
@@ -50,6 +52,9 @@ impl Config {
         if let Some(node_id) = &cli.node_id {
             self.node_id = node_id.clone();
         }
+        if let Some(key_file) = &cli.identity_file {
+            self.identity.key_file = key_file.clone();
+        }
         if let Some(listen) = cli.p2p_listen {
             self.p2p.listen = listen;
         }
@@ -64,6 +69,22 @@ impl Config {
         }
         if let Some(level) = &cli.log {
             self.log.level = level.clone();
+        }
+    }
+}
+
+/// Identity (Ed25519 key) configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IdentityConfig {
+    /// File the node's signing key is stored in; created if absent.
+    pub key_file: PathBuf,
+}
+
+impl Default for IdentityConfig {
+    fn default() -> Self {
+        Self {
+            key_file: PathBuf::from("node.key"),
         }
     }
 }

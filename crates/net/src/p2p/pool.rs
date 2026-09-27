@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use identity::Keypair;
 use proto::v1;
 use tonic::transport::Channel;
 use tower::balance::p2c::Balance;
@@ -106,7 +107,7 @@ impl PeerPool {
     ///
     /// Peers that fail to connect are skipped with a warning; if none remain
     /// this returns [`NetError::NoPeers`].
-    pub async fn connect(config: &P2pConfig) -> Result<Self, NetError> {
+    pub async fn connect(config: &P2pConfig, keypair: Keypair) -> Result<Self, NetError> {
         let allowed: Arc<[PeerMethod]> = config
             .allowed_methods
             .iter()
@@ -131,7 +132,13 @@ impl PeerPool {
                     continue;
                 }
             };
-            peers.push(build_peer(channel, config, timeout, allowed.clone()));
+            peers.push(build_peer(
+                channel,
+                config,
+                timeout,
+                allowed.clone(),
+                keypair.clone(),
+            ));
         }
 
         if peers.is_empty() {
@@ -206,6 +213,7 @@ fn build_peer(
     config: &P2pConfig,
     timeout: Duration,
     allowed: Arc<[PeerMethod]>,
+    keypair: Keypair,
 ) -> Peer {
     let predicate = MethodAllowlist { allowed };
     let service = ServiceBuilder::new()
@@ -216,7 +224,7 @@ fn build_peer(
         )))
         .layer(MapErrLayer::new(map_timeout_error))
         .layer(TimeoutLayer::new(timeout))
-        .service(ChannelRpc::new(channel));
+        .service(ChannelRpc::new(channel, keypair, config.max_clock_skew()));
     Peer::new(BoxCloneService::new(service))
 }
 

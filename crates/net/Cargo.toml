@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 proto.workspace = true
+identity.workspace = true
 
 tokio = { workspace = true, features = ["rt", "net", "time", "macros", "signal", "sync"] }
 tokio-util.workspace = true

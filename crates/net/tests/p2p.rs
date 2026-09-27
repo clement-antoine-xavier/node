@@ -1,12 +1,14 @@
-//! Integration tests for the node-to-node gRPC interface.
+//! Integration tests for the node-to-node gRPC interface (authenticated).
 
 use std::net::TcpListener;
 use std::time::Duration;
 
 use net::config::P2pConfig;
 use net::error::PeerError;
+use net::identity::Keypair;
 use net::p2p::{NodeServiceImpl, PeerPool};
 use net::shutdown::Shutdown;
+use net::v1;
 
 fn free_port() -> u16 {
     TcpListener::bind("127.0.0.1:0")
@@ -33,7 +35,14 @@ fn client_config(port: u16) -> P2pConfig {
 async fn start_server(config: P2pConfig, shutdown: Shutdown) -> tokio::task::JoinHandle<()> {
     let token = shutdown.token();
     tokio::spawn(async move {
-        let service = NodeServiceImpl::new("peer-a", "127.0.0.1:0", "test");
+        let keypair = Keypair::generate().expect("server keypair");
+        let service = NodeServiceImpl::new(
+            "peer-a",
+            "127.0.0.1:0",
+            "test",
+            keypair,
+            Duration::from_secs(300),
+        );
         if let Err(error) = net::p2p::serve(config, service, token).await {
             eprintln!("server error: {error}");
         }
@@ -42,7 +51,8 @@ async fn start_server(config: P2pConfig, shutdown: Shutdown) -> tokio::task::Joi
 
 async fn connect_with_retry(config: &P2pConfig) -> PeerPool {
     for _ in 0..100 {
-        if let Ok(pool) = PeerPool::connect(config).await {
+        let keypair = Keypair::generate().expect("client keypair");
+        if let Ok(pool) = PeerPool::connect(config, keypair).await {
             return pool;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -73,23 +83,48 @@ async fn ping_and_status_round_trip() {
 }
 
 #[tokio::test]
-async fn handshake_returns_peer_identity() {
+async fn handshake_reveals_the_peer_public_key() {
     let port = free_port();
     let shutdown = Shutdown::new();
     let server = start_server(server_config(port), shutdown.clone()).await;
 
     let pool = connect_with_retry(&client_config(port)).await;
     let response = pool
-        .handshake(net::v1::HandshakeRequest {
+        .handshake(v1::HandshakeRequest {
             peer_id: "peer-b".into(),
             protocol_version: net::PROTOCOL_VERSION.into(),
             advertise_address: String::new(),
+            public_key: String::new(),
         })
         .await
         .expect("handshake succeeds");
 
     assert_eq!(response.peer_id, "peer-a");
-    assert_eq!(response.protocol_version, net::PROTOCOL_VERSION);
+    assert!(!response.public_key.is_empty(), "server key is exposed");
+
+    shutdown.cancel();
+    server.await.expect("server task");
+}
+
+#[tokio::test]
+async fn unsigned_peer_request_is_rejected() {
+    let port = free_port();
+    let shutdown = Shutdown::new();
+    let server = start_server(server_config(port), shutdown.clone()).await;
+
+    // Wait for the server, then talk to it with a raw, unsigned client.
+    let channel = loop {
+        if let Ok(channel) = net::p2p::connect_channel(&format!("http://127.0.0.1:{port}")).await {
+            break channel;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    };
+    let mut client = v1::node_service_client::NodeServiceClient::new(channel);
+    let status = client
+        .ping(v1::PingRequest { nonce: 1 })
+        .await
+        .expect_err("unsigned ping must be rejected");
+    assert_eq!(status.code(), tonic::Code::Unauthenticated);
 
     shutdown.cancel();
     server.await.expect("server task");

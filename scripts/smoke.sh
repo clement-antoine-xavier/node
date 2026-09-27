@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Live smoke test: boots two nodes, verifies the gRPC handshake, the HTTP
-# endpoints, routing and method filtering, then tears everything down.
+# Live smoke test: boots two nodes, verifies the signed gRPC handshake, the
+# signed HTTP endpoints, routing and method filtering, then tears everything
+# down.
 #
 # Usage: scripts/smoke.sh
 
@@ -16,6 +17,7 @@ b_p2p=9102
 b_http=8182
 
 logs="$(mktemp -d)"
+key_a="$logs/node-a.key"
 pid_a=""
 pid_b=""
 
@@ -35,11 +37,26 @@ wait_for() {
   return 1
 }
 
-wait_for_status() {
-  local url="$1" needle="$2" body=""
+# Print "Name: value" signature headers using the node's own signer.
+sign_headers() {
+  "$bin" sign --key-file "$1" --method "$2" --path "$3" | awk '{print $1 ": " $2}'
+}
+
+# GET a path with a valid signature; mirrors what a client SDK would do.
+signed_get() {
+  local path="$1"
+  local -a args=()
+  while IFS= read -r header; do args+=(-H "$header"); done < <(sign_headers "$key_a" GET "$path")
+  curl -s -o /dev/null -w '%{http_code}' "${args[@]}" "http://127.0.0.1:$a_http$path"
+}
+
+wait_for_signed_status() {
+  local body=""
   for _ in $(seq 1 50); do
-    body="$(curl -s "$url")"
-    case "$body" in *"$needle"*) echo "$body"; return 0;; esac
+    local -a args=()
+    while IFS= read -r header; do args+=(-H "$header"); done < <(sign_headers "$key_a" GET "/status")
+    body="$(curl -s "${args[@]}" "http://127.0.0.1:$a_http/status")"
+    case "$body" in *'"peer_count":1'*) echo "$body"; return 0;; esac
     sleep 0.1
   done
   echo "$body"
@@ -49,13 +66,15 @@ wait_for_status() {
 cargo build -q -p node
 
 echo "starting node-a (p2p $a_p2p, http $a_http)"
-"$bin" --node-id node-a --p2p-listen "127.0.0.1:$a_p2p" --client-listen "127.0.0.1:$a_http" \
+"$bin" --node-id node-a --identity-file "$key_a" \
+  --p2p-listen "127.0.0.1:$a_p2p" --client-listen "127.0.0.1:$a_http" \
   >"$logs/a.log" 2>&1 &
 pid_a=$!
 wait_for "http://127.0.0.1:$a_http/health" || { echo "node-a never came up"; exit 1; }
 
 echo "starting node-b (p2p $b_p2p, http $b_http) -> peer node-a"
-"$bin" --node-id node-b --p2p-listen "127.0.0.1:$b_p2p" --client-listen "127.0.0.1:$b_http" \
+"$bin" --node-id node-b --identity-file "$logs/node-b.key" \
+  --p2p-listen "127.0.0.1:$b_p2p" --client-listen "127.0.0.1:$b_http" \
   --peers "http://127.0.0.1:$a_p2p" >"$logs/b.log" 2>&1 &
 pid_b=$!
 wait_for "http://127.0.0.1:$b_http/health" || { echo "node-b never came up"; exit 1; }
@@ -72,16 +91,19 @@ check() {
 
 echo "checking node-a HTTP surface"
 health="$(curl -s "http://127.0.0.1:$a_http/health")"
-check "GET /health" "${health//[[:space:]]/}" '{"status":"ok"}'
+check "GET /health (open)" "${health//[[:space:]]/}" '{"status":"ok"}'
 
-code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$a_http/nope")"
+code="$(signed_get "/nope")"
 check "GET /nope -> 404" "$code" "404"
 
 code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:$a_http/health")"
 check "POST /health -> 405" "$code" "405"
 
+code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$a_http/status")"
+check "GET /status unsigned -> 401" "$code" "401"
+
 echo "checking node-b handshook node-a"
-status="$(wait_for_status "http://127.0.0.1:$a_http/status" '"peer_count":1' || true)"
+status="$(wait_for_signed_status || true)"
 case "$status" in
   *'"peer_count":1'*) echo "  ok   node-a reports 1 peer" ;;
   *) echo "  FAIL node-a did not register the peer: $status"; fail=1 ;;

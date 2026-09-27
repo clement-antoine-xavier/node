@@ -11,6 +11,8 @@ pub enum NetError {
     Io(#[from] std::io::Error),
     #[error("HTTP error: {0}")]
     Http(#[from] hyper::Error),
+    #[error("identity error: {0}")]
+    Identity(#[from] identity::Error),
     #[error("invalid address `{address}`: {reason}")]
     Address { address: String, reason: String },
     #[error("no reachable peers")]
@@ -31,6 +33,10 @@ pub enum PeerError {
     Transport(String),
     #[error("peer request timed out")]
     Timeout,
+    #[error("peer message was not authenticated: {0}")]
+    Unauthenticated(String),
+    #[error("failed to sign peer message: {0}")]
+    Signing(String),
     #[error("unexpected response from peer")]
     UnexpectedResponse,
 }
@@ -48,7 +54,9 @@ impl PeerError {
                     | tonic::Code::Aborted
                     | tonic::Code::ResourceExhausted
             ),
-            PeerError::UnexpectedResponse => false,
+            PeerError::Unauthenticated(_)
+            | PeerError::Signing(_)
+            | PeerError::UnexpectedResponse => false,
         }
     }
 }
@@ -60,4 +68,17 @@ impl From<tonic::Status> for PeerError {
             message: status.message().to_owned(),
         }
     }
+}
+
+/// Errors raised while signing or verifying a message.
+#[derive(Debug, Clone, Error)]
+pub enum AuthError {
+    #[error("missing `{0}`")]
+    Missing(&'static str),
+    #[error("malformed `{0}`")]
+    Malformed(&'static str),
+    #[error("message signature is invalid")]
+    InvalidSignature,
+    #[error("message timestamp is outside the allowed clock skew")]
+    StaleTimestamp,
 }
